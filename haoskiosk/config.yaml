@@ -22,6 +22,7 @@ homeassistant_api: true
 auth_api: true
 audio: true
 usb: true
+video: true
 
 ulimits:
   nofile:
