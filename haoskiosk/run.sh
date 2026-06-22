@@ -691,9 +691,12 @@ if [ "$DEBUG_MODE" != true ]; then
         BROWSER_FLAGS="$BROWSER_FLAGS --disable-setuid-sandbox"
         # Fix OpenGL/EGL crash in container
         BROWSER_FLAGS="$BROWSER_FLAGS --disable-gpu"
-        BROWSER_FLAGS="$BROWSER_FLAGS --disable-software-rasterizer"
+        # Removed --disable-software-rasterizer as it might cause crash if no rendering path exists
         # Auto-grant camera/mic permission (no popup in kiosk mode)
         BROWSER_FLAGS="$BROWSER_FLAGS --use-fake-ui-for-media-stream"
+        
+        # Add logging to help diagnose if it crashes again
+        BROWSER_FLAGS="$BROWSER_FLAGS --enable-logging=stderr --v=1"
 
         # Dark mode support
         if [ "$DARK_MODE" = true ]; then
