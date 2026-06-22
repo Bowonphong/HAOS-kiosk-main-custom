@@ -83,7 +83,9 @@ trap cleanup HUP INT QUIT ABRT TERM EXIT
 
 ################################################################################
 #### Variables
-BROWSER="luakit"
+# Use Chromium browser (supports --unsafely-treat-insecure-origin-as-secure and other modern flags)
+# Set to "luakit" to revert to the original lightweight WebKit browser
+BROWSER="chromium-browser"
 BROWSER_FLAGS=
 
 ################################################################################
@@ -668,6 +670,32 @@ fi
 
 #### Start browser (or debug mode)  and wait/sleep
 if [ "$DEBUG_MODE" != true ]; then
+    ### Set Chromium kiosk flags (only when using chromium-browser)
+    if [ "$BROWSER" = "chromium-browser" ]; then
+        # Compute scale factor from ZOOM_LEVEL (e.g. 100 -> 1.00)
+        ZOOM_FACTOR=$(awk "BEGIN {printf \"%.2f\", $ZOOM_LEVEL/100}")
+
+        BROWSER_FLAGS="--kiosk"
+        BROWSER_FLAGS="$BROWSER_FLAGS --noerrdialogs"
+        BROWSER_FLAGS="$BROWSER_FLAGS --disable-infobars"
+        BROWSER_FLAGS="$BROWSER_FLAGS --no-first-run"
+        BROWSER_FLAGS="$BROWSER_FLAGS --disable-restore-session-state"
+        BROWSER_FLAGS="$BROWSER_FLAGS --disable-dev-shm-usage"
+        BROWSER_FLAGS="$BROWSER_FLAGS --disable-features=TranslateUI"
+        BROWSER_FLAGS="$BROWSER_FLAGS --check-for-update-interval=31536000"
+        BROWSER_FLAGS="$BROWSER_FLAGS --user-data-dir=/root/.chromium-profile"
+        BROWSER_FLAGS="$BROWSER_FLAGS --force-device-scale-factor=$ZOOM_FACTOR"
+        # Auto-grant camera/mic permission (no popup in kiosk mode)
+        BROWSER_FLAGS="$BROWSER_FLAGS --use-fake-ui-for-media-stream"
+
+        # Dark mode support
+        if [ "$DARK_MODE" = true ]; then
+            BROWSER_FLAGS="$BROWSER_FLAGS --enable-features=WebUIDarkMode --force-dark-mode"
+        fi
+
+        bashio::log.info "Chromium kiosk mode: zoom=$ZOOM_FACTOR dark=$DARK_MODE"
+    fi
+
     ### Apply extra browser args from CHROMIUM_ARGS config option
     if [ -n "$CHROMIUM_ARGS" ]; then
         BROWSER_FLAGS="${BROWSER_FLAGS:+$BROWSER_FLAGS }$CHROMIUM_ARGS"

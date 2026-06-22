@@ -64,7 +64,9 @@ RUN apk update && apk add --no-cache \
       x11vnc \
 # Browser
 #    luakit \
-   && apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/v3.21/community luakit=2.3.6-r0 \
+   && apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/v3.21/community \
+        luakit=2.3.6-r0 \
+        chromium \
    && rm -rf /var/cache/apk/*
 
 #===============================================================================
