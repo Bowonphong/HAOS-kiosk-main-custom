@@ -717,7 +717,7 @@ if [ "$DEBUG_MODE" != true ]; then
 
     count=0
     while true; do  # Wait for all browser processes to exit
-        if pgrep -f -- "^$BROWSER " > /dev/null 2>&1; then
+        if pgrep -f "chromium" > /dev/null 2>&1 || pgrep -f "^luakit " > /dev/null 2>&1; then
             count=0
         else
             count=$((count + 1))
