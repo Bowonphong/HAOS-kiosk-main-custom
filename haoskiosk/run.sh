@@ -562,6 +562,7 @@ if [[ "$ONSCREEN_KEYBOARD" = true && -n "$SCREEN_WIDTH" && -n "$SCREEN_HEIGHT" ]
     dconf write /org/onboard/auto-show/enabled true  # Auto-show
     dconf write /org/onboard/auto-show/tablet-mode-detection-enabled false  # Show keyboard only in tablet mode
     dconf write /org/onboard/window/force-to-top true  # Always on top
+    dconf write /org/onboard/icon-palette/in-use true  # Always show the floating icon on screen
     gsettings set org.gnome.desktop.interface toolkit-accessibility true  # Disable gnome accessibility popup
 
     # Default landscape geometry
