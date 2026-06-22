@@ -680,11 +680,15 @@ if [ "$DEBUG_MODE" != true ]; then
         BROWSER_FLAGS="$BROWSER_FLAGS --disable-infobars"
         BROWSER_FLAGS="$BROWSER_FLAGS --no-first-run"
         BROWSER_FLAGS="$BROWSER_FLAGS --disable-restore-session-state"
+        BROWSER_FLAGS="$BROWSER_FLAGS --disable-session-crashed-bubble"
         BROWSER_FLAGS="$BROWSER_FLAGS --disable-dev-shm-usage"
         BROWSER_FLAGS="$BROWSER_FLAGS --disable-features=TranslateUI"
         BROWSER_FLAGS="$BROWSER_FLAGS --check-for-update-interval=31536000"
         BROWSER_FLAGS="$BROWSER_FLAGS --user-data-dir=/root/.chromium-profile"
         BROWSER_FLAGS="$BROWSER_FLAGS --force-device-scale-factor=$ZOOM_FACTOR"
+        # Required for running Chromium inside Docker/HAOS containers (no setuid sandbox)
+        BROWSER_FLAGS="$BROWSER_FLAGS --no-sandbox"
+        BROWSER_FLAGS="$BROWSER_FLAGS --disable-setuid-sandbox"
         # Auto-grant camera/mic permission (no popup in kiosk mode)
         BROWSER_FLAGS="$BROWSER_FLAGS --use-fake-ui-for-media-stream"
 
