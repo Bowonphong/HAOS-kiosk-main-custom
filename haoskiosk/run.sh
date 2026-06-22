@@ -689,6 +689,9 @@ if [ "$DEBUG_MODE" != true ]; then
         # Required for running Chromium inside Docker/HAOS containers (no setuid sandbox)
         BROWSER_FLAGS="$BROWSER_FLAGS --no-sandbox"
         BROWSER_FLAGS="$BROWSER_FLAGS --disable-setuid-sandbox"
+        # Fix OpenGL/EGL crash in container
+        BROWSER_FLAGS="$BROWSER_FLAGS --disable-gpu"
+        BROWSER_FLAGS="$BROWSER_FLAGS --disable-software-rasterizer"
         # Auto-grant camera/mic permission (no popup in kiosk mode)
         BROWSER_FLAGS="$BROWSER_FLAGS --use-fake-ui-for-media-stream"
 
