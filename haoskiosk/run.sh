@@ -594,10 +594,9 @@ if [[ "$ONSCREEN_KEYBOARD" = true && -n "$SCREEN_WIDTH" && -n "$SCREEN_HEIGHT" ]
         /org/onboard/Onboard/Keyboard \
         org.onboard.Onboard.Keyboard.Hide 2>/dev/null ) &
 
-    ### Smart keyboard monitor using Chromium Remote Debugging API
-    # Polls the real current URL from Chromium every 2 seconds.
-    # - Admin/Login URL → enable onboard auto-show (keyboard appears only when text field focused)
-    # - All other URLs  → disable auto-show + force-hide keyboard
+    ### Smart keyboard monitor using Chromium Remote Debugging API & Process Freezing
+    # - Admin/Login URL → Thaw onboard, enable auto-show
+    # - All other URLs  → Hide onboard, FREEZE process to prevent AT-SPI flashing
     bashio::log.info "Starting smart keyboard monitor (URL-based, Admin pages only)..."
     (
         set +e  # Prevent bashio from killing the subshell if wget or grep fails
@@ -605,8 +604,9 @@ if [[ "$ONSCREEN_KEYBOARD" = true && -n "$SCREEN_WIDTH" && -n "$SCREEN_HEIGHT" ]
         PREV_PAGE=""
         MONITOR_LOG="/media/keyboard_monitor.log"
         echo "[$(date)] Keyboard monitor started" > "$MONITOR_LOG"
+        
         while true; do
-            # Method 1: Try Chrome DevTools remote debugging API (most reliable)
+            # Method 1: Try Chrome DevTools remote debugging API
             CURRENT_URL=$(wget -q -T 2 -O- http://127.0.0.1:9222/json 2>/dev/null \
                 | grep -o '"url":"[^"]*"' \
                 | grep -v 'devtools\|chrome-extension\|about:' \
@@ -619,27 +619,30 @@ if [[ "$ONSCREEN_KEYBOARD" = true && -n "$SCREEN_WIDTH" && -n "$SCREEN_HEIGHT" ]
                     || echo "")
             fi
 
-            # Log current URL to file for debugging
-            echo "[$(date '+%H:%M:%S')] URL=$CURRENT_URL" >> "$MONITOR_LOG"
-
-            # Detect admin/login page
-            if echo "$CURRENT_URL" | grep -iE "admin|login|signin|/auth|password|รหัส" > /dev/null 2>&1; then
+            # Detect admin/login page (Added 'ผู้ดูแล' for Thai admin pages)
+            if echo "$CURRENT_URL" | grep -iE "admin|login|signin|/auth|password|รหัส|ผู้ดูแล" > /dev/null 2>&1; then
                 if [ "$PREV_PAGE" != "admin" ]; then
-                    echo "[$(date '+%H:%M:%S')] ADMIN page detected - enabling auto-show" >> "$MONITOR_LOG"
+                    echo "[$(date '+%H:%M:%S')] ADMIN page detected ($CURRENT_URL) - Thawing keyboard" >> "$MONITOR_LOG"
+                    # 1. Wake up onboard process
+                    pkill -CONT -f "onboard" 2>/dev/null
+                    # 2. Enable auto-show so it reacts to text fields
                     dconf write /org/onboard/auto-show/enabled true
                     PREV_PAGE="admin"
                 fi
             else
                 if [ "$PREV_PAGE" != "user" ]; then
-                    echo "[$(date '+%H:%M:%S')] USER page detected - hiding keyboard" >> "$MONITOR_LOG"
-                    dconf write /org/onboard/auto-show/enabled false
+                    echo "[$(date '+%H:%M:%S')] USER page detected ($CURRENT_URL) - Freezing keyboard" >> "$MONITOR_LOG"
                     PREV_PAGE="user"
                 fi
-                # Force-hide while on user page
+                # Aggressively ensure it is hidden and frozen
+                # 1. Hide it first
                 dbus-send --session --type=method_call \
                     --dest=org.onboard.Onboard \
                     /org/onboard/Onboard/Keyboard \
                     org.onboard.Onboard.Keyboard.Hide 2>/dev/null
+                sleep 0.5
+                # 2. Freeze the process so Chromium AT-SPI cannot make it flash!
+                pkill -STOP -f "onboard" 2>/dev/null
             fi
             sleep 2
         done
