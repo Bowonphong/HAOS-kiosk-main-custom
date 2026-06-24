@@ -600,6 +600,7 @@ if [[ "$ONSCREEN_KEYBOARD" = true && -n "$SCREEN_WIDTH" && -n "$SCREEN_HEIGHT" ]
     # - All other URLs  → disable auto-show + force-hide keyboard
     bashio::log.info "Starting smart keyboard monitor (URL-based, Admin pages only)..."
     (
+        set +e  # Prevent bashio from killing the subshell if wget or grep fails
         sleep 8  # Wait for Chromium and its debug port to fully start
         PREV_PAGE=""
         MONITOR_LOG="/media/keyboard_monitor.log"
