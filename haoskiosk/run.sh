@@ -594,31 +594,34 @@ if [[ "$ONSCREEN_KEYBOARD" = true && -n "$SCREEN_WIDTH" && -n "$SCREEN_HEIGHT" ]
         /org/onboard/Onboard/Keyboard \
         org.onboard.Onboard.Keyboard.Hide 2>/dev/null ) &
 
-    ### Smart keyboard monitor:
-    # - Admin/Login page: enable auto-show so keyboard appears only when text field is focused
-    # - All other pages: disable auto-show and force-hide keyboard
-    bashio::log.info "Starting smart keyboard monitor (Admin pages only)..."
+    ### Smart keyboard monitor using Chromium Remote Debugging API
+    # Polls the real current URL from Chromium every 2 seconds.
+    # - Admin/Login URL → enable onboard auto-show (keyboard appears only when text field focused)
+    # - All other URLs  → disable auto-show + force-hide keyboard
+    bashio::log.info "Starting smart keyboard monitor (URL-based, Admin pages only)..."
     (
-        sleep 5  # Wait for onboard and Chromium to fully start up
+        sleep 8  # Wait for Chromium and its debug port to fully start
         PREV_PAGE=""
         while true; do
-            WIN_TITLE=$(xdotool getactivewindow getwindowname 2>/dev/null || xdotool search --onlyvisible --class "chromium" getwindowname 2>/dev/null | head -1 || echo "")
+            # Get current URL from Chromium DevTools API (much more reliable than window title)
+            CHROME_JSON=$(wget -qO- http://localhost:9222/json 2>/dev/null || echo "")
+            CURRENT_URL=$(echo "$CHROME_JSON" | grep -o '"url":"[^"]*"' | head -1 | cut -d'"' -f4)
 
-            if echo "$WIN_TITLE" | grep -iE "admin|login|sign.?in|รหัสผ่าน|password|เข้าสู่ระบบ" > /dev/null 2>&1; then
-                # Admin page: enable auto-show so onboard appears only when text input is focused
+            if echo "$CURRENT_URL" | grep -iE "admin|login|signin|/auth" > /dev/null 2>&1; then
+                # Admin/Login page: enable auto-show so keyboard shows only on text field focus
                 if [ "$PREV_PAGE" != "admin" ]; then
-                    bashio::log.info "Keyboard monitor: ADMIN page detected - enabling auto-show"
+                    bashio::log.info "Keyboard monitor: ADMIN page ($CURRENT_URL) - enabling auto-show"
                     dconf write /org/onboard/auto-show/enabled true
                     PREV_PAGE="admin"
                 fi
             else
-                # User page: disable auto-show and force-hide
+                # User/Dashboard page: disable auto-show and force-hide
                 if [ "$PREV_PAGE" != "user" ]; then
-                    bashio::log.info "Keyboard monitor: USER page detected - disabling keyboard"
+                    bashio::log.info "Keyboard monitor: USER page ($CURRENT_URL) - hiding keyboard"
                     dconf write /org/onboard/auto-show/enabled false
                     PREV_PAGE="user"
                 fi
-                # Keep hiding aggressively every cycle
+                # Aggressively hide every cycle while on user page
                 dbus-send --session --type=method_call \
                     --dest=org.onboard.Onboard \
                     /org/onboard/Onboard/Keyboard \
@@ -726,6 +729,8 @@ if [ "$DEBUG_MODE" != true ]; then
         BROWSER_FLAGS="$BROWSER_FLAGS --use-fake-ui-for-media-stream"
         # Expose text field focus events via AT-SPI so onboard auto-show works on admin page
         BROWSER_FLAGS="$BROWSER_FLAGS --force-renderer-accessibility"
+        # Remote debugging port so keyboard monitor can read current URL reliably
+        BROWSER_FLAGS="$BROWSER_FLAGS --remote-debugging-port=9222"
         # Add logging to help diagnose if it crashes again
         BROWSER_FLAGS="$BROWSER_FLAGS --enable-logging=stderr --v=1"
 
