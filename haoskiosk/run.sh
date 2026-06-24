@@ -588,33 +588,27 @@ if [[ "$ONSCREEN_KEYBOARD" = true && -n "$SCREEN_WIDTH" && -n "$SCREEN_HEIGHT" ]
     onboard &
 
     ### Smart keyboard monitor: show keyboard ONLY on Admin/Login pages
-    # Watches the Chromium window title every second.
     bashio::log.info "Starting smart keyboard monitor (Admin pages only)..."
     (
-        PREV_STATE=""
         while true; do
-            # Use getactivewindow to be more precise if possible, fallback to search
+            # Get window title
             WIN_TITLE=$(xdotool getactivewindow getwindowname 2>/dev/null || xdotool search --onlyvisible --class "chromium" getwindowname 2>/dev/null | head -1 || echo "")
             
+            # Check if title contains admin keywords
             if echo "$WIN_TITLE" | grep -iE "admin|login|sign.?in|รหัสผ่าน|password|เข้าสู่ระบบ" > /dev/null 2>&1; then
-                if [ "$PREV_STATE" != "show" ]; then
-                    dbus-send --type=method_call \
-                        --dest=org.onboard.Onboard \
-                        /org/onboard/Onboard/Keyboard \
-                        org.onboard.Onboard.Keyboard.Show 2>/dev/null
-                    PREV_STATE="show"
-                    bashio::log.info "Keyboard: SHOW (Title matched: $WIN_TITLE)"
-                fi
+                # On Admin page: ensure it's shown
+                dbus-send --type=method_call \
+                    --dest=org.onboard.Onboard \
+                    /org/onboard/Onboard/Keyboard \
+                    org.onboard.Onboard.Keyboard.Show 2>/dev/null
             else
-                if [ "$PREV_STATE" != "hide" ]; then
-                    dbus-send --type=method_call \
-                        --dest=org.onboard.Onboard \
-                        /org/onboard/Onboard/Keyboard \
-                        org.onboard.Onboard.Keyboard.Hide 2>/dev/null
-                    PREV_STATE="hide"
-                fi
+                # On User page: aggressively hide it (in case something else popped it up)
+                dbus-send --type=method_call \
+                    --dest=org.onboard.Onboard \
+                    /org/onboard/Onboard/Keyboard \
+                    org.onboard.Onboard.Keyboard.Hide 2>/dev/null
             fi
-            sleep 1
+            sleep 2
         done
     ) &
 fi
@@ -714,9 +708,6 @@ if [ "$DEBUG_MODE" != true ]; then
         # Removed --disable-software-rasterizer as it might cause crash if no rendering path exists
         # Auto-grant camera/mic permission (no popup in kiosk mode)
         BROWSER_FLAGS="$BROWSER_FLAGS --use-fake-ui-for-media-stream"
-        
-        # Force accessibility so 'onboard' keyboard can detect text fields and auto-show
-        BROWSER_FLAGS="$BROWSER_FLAGS --force-renderer-accessibility"
         
         # Add logging to help diagnose if it crashes again
         BROWSER_FLAGS="$BROWSER_FLAGS --enable-logging=stderr --v=1"
