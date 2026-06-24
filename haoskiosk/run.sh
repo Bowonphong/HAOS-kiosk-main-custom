@@ -602,26 +602,39 @@ if [[ "$ONSCREEN_KEYBOARD" = true && -n "$SCREEN_WIDTH" && -n "$SCREEN_HEIGHT" ]
     (
         sleep 8  # Wait for Chromium and its debug port to fully start
         PREV_PAGE=""
+        MONITOR_LOG="/tmp/keyboard_monitor.log"
+        echo "[$(date)] Keyboard monitor started" > "$MONITOR_LOG"
         while true; do
-            # Get current URL from Chromium DevTools API (much more reliable than window title)
-            CHROME_JSON=$(wget -qO- http://localhost:9222/json 2>/dev/null || echo "")
-            CURRENT_URL=$(echo "$CHROME_JSON" | grep -o '"url":"[^"]*"' | head -1 | cut -d'"' -f4)
+            # Method 1: Try Chrome DevTools remote debugging API (most reliable)
+            CURRENT_URL=$(wget -q -T 2 -O- http://127.0.0.1:9222/json 2>/dev/null \
+                | grep -o '"url":"[^"]*"' \
+                | grep -v 'devtools\|chrome-extension\|about:' \
+                | head -1 | cut -d'"' -f4)
 
-            if echo "$CURRENT_URL" | grep -iE "admin|login|signin|/auth" > /dev/null 2>&1; then
-                # Admin/Login page: enable auto-show so keyboard shows only on text field focus
+            # Method 2: Fallback to xdotool window title if DevTools unavailable
+            if [ -z "$CURRENT_URL" ]; then
+                CURRENT_URL=$(xdotool getactivewindow getwindowname 2>/dev/null \
+                    || xdotool search --onlyvisible --class "chromium" getwindowname 2>/dev/null | head -1 \
+                    || echo "")
+            fi
+
+            # Log current URL to file for debugging
+            echo "[$(date '+%H:%M:%S')] URL=$CURRENT_URL" >> "$MONITOR_LOG"
+
+            # Detect admin/login page
+            if echo "$CURRENT_URL" | grep -iE "admin|login|signin|/auth|password|รหัส" > /dev/null 2>&1; then
                 if [ "$PREV_PAGE" != "admin" ]; then
-                    bashio::log.info "Keyboard monitor: ADMIN page ($CURRENT_URL) - enabling auto-show"
+                    echo "[$(date '+%H:%M:%S')] ADMIN page detected - enabling auto-show" >> "$MONITOR_LOG"
                     dconf write /org/onboard/auto-show/enabled true
                     PREV_PAGE="admin"
                 fi
             else
-                # User/Dashboard page: disable auto-show and force-hide
                 if [ "$PREV_PAGE" != "user" ]; then
-                    bashio::log.info "Keyboard monitor: USER page ($CURRENT_URL) - hiding keyboard"
+                    echo "[$(date '+%H:%M:%S')] USER page detected - hiding keyboard" >> "$MONITOR_LOG"
                     dconf write /org/onboard/auto-show/enabled false
                     PREV_PAGE="user"
                 fi
-                # Aggressively hide every cycle while on user page
+                # Force-hide while on user page
                 dbus-send --session --type=method_call \
                     --dest=org.onboard.Onboard \
                     /org/onboard/Onboard/Keyboard \
@@ -731,8 +744,7 @@ if [ "$DEBUG_MODE" != true ]; then
         BROWSER_FLAGS="$BROWSER_FLAGS --force-renderer-accessibility"
         # Remote debugging port so keyboard monitor can read current URL reliably
         BROWSER_FLAGS="$BROWSER_FLAGS --remote-debugging-port=9222"
-        # Add logging to help diagnose if it crashes again
-        BROWSER_FLAGS="$BROWSER_FLAGS --enable-logging=stderr --v=1"
+        # Logging (removed --v=1 verbose flag - too noisy)
 
         # Dark mode support
         if [ "$DARK_MODE" = true ]; then
