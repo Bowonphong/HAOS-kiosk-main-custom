@@ -602,7 +602,7 @@ if [[ "$ONSCREEN_KEYBOARD" = true && -n "$SCREEN_WIDTH" && -n "$SCREEN_HEIGHT" ]
     (
         sleep 8  # Wait for Chromium and its debug port to fully start
         PREV_PAGE=""
-        MONITOR_LOG="/config/keyboard_monitor.log"
+        MONITOR_LOG="/media/keyboard_monitor.log"
         echo "[$(date)] Keyboard monitor started" > "$MONITOR_LOG"
         while true; do
             # Method 1: Try Chrome DevTools remote debugging API (most reliable)
