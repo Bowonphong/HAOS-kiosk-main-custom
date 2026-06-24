@@ -587,23 +587,31 @@ if [[ "$ONSCREEN_KEYBOARD" = true && -n "$SCREEN_WIDTH" && -n "$SCREEN_HEIGHT" ]
     bashio::log.info "Starting Onboard onscreen keyboard"
     onboard &
 
+    # Force-hide onboard after 3 seconds (overrides any saved visible state from previous session)
+    ( sleep 3 && dbus-send --session --type=method_call \
+        --dest=org.onboard.Onboard \
+        /org/onboard/Onboard/Keyboard \
+        org.onboard.Onboard.Keyboard.Hide 2>/dev/null ) &
+
     ### Smart keyboard monitor: show keyboard ONLY on Admin/Login pages
     bashio::log.info "Starting smart keyboard monitor (Admin pages only)..."
     (
+        sleep 5  # Wait for onboard and Chromium to fully start up
         while true; do
-            # Get window title
+            # Get window title (log it so we can debug what title the user page has)
             WIN_TITLE=$(xdotool getactivewindow getwindowname 2>/dev/null || xdotool search --onlyvisible --class "chromium" getwindowname 2>/dev/null | head -1 || echo "")
-            
-            # Check if title contains admin keywords
+            bashio::log.debug "Keyboard monitor: window='$WIN_TITLE'"
+
+            # Check if title contains admin/login keywords
             if echo "$WIN_TITLE" | grep -iE "admin|login|sign.?in|รหัสผ่าน|password|เข้าสู่ระบบ" > /dev/null 2>&1; then
-                # On Admin page: ensure it's shown
-                dbus-send --type=method_call \
+                # On Admin page: show keyboard
+                dbus-send --session --type=method_call \
                     --dest=org.onboard.Onboard \
                     /org/onboard/Onboard/Keyboard \
                     org.onboard.Onboard.Keyboard.Show 2>/dev/null
             else
-                # On User page: aggressively hide it (in case something else popped it up)
-                dbus-send --type=method_call \
+                # On any other page: force-hide keyboard every 2 seconds
+                dbus-send --session --type=method_call \
                     --dest=org.onboard.Onboard \
                     /org/onboard/Onboard/Keyboard \
                     org.onboard.Onboard.Keyboard.Hide 2>/dev/null
