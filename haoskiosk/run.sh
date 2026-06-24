@@ -558,25 +558,6 @@ if [[ "$ONSCREEN_KEYBOARD" = true && -n "$SCREEN_WIDTH" && -n "$SCREEN_HEIGHT" ]
     dconf write /org/onboard/theme-settings/color-scheme "'/usr/share/onboard/themes/Charcoal.colors'"
     dconf write /org/onboard/keyboard/show-click-buttons true  # Show buttons on keyboard for left/middle/right click & drag
 
-    # Behavior settings
-    dconf write /org/onboard/auto-show/enabled false  # Manual control via keyboard_monitor script
-    dconf write /org/onboard/auto-show/tablet-mode-detection-enabled false
-    dconf write /org/onboard/window/force-to-top true  # Always on top
-    dconf write /org/onboard/icon-palette/in-use false  # Hide floating icon (was causing 4-square bug)
-    gsettings set org.gnome.desktop.interface toolkit-accessibility true
-
-    # Default landscape geometry
-    dconf write /org/onboard/window/landscape/height "$LAND_HEIGHT"
-    dconf write /org/onboard/window/landscape/width "$LAND_WIDTH"
-    dconf write /org/onboard/window/landscape/x "$LAND_X_OFFSET"
-    dconf write /org/onboard/window/landscape/y "$LAND_Y_OFFSET"
-
-    # Default portrait geometry
-    dconf write /org/onboard/window/portrait/height "$PORT_HEIGHT"
-    dconf write /org/onboard/window/portrait/width "$PORT_WIDTH"
-    dconf write /org/onboard/window/portrait/x "$PORT_X_OFFSET"
-    dconf write /org/onboard/window/portrait/y "$PORT_Y_OFFSET"
-
     ### Restore or delete saved  user configuration
     if [ -f "$ONBOARD_CONFIG_FILE" ]; then
         if [ "$SAVE_ONSCREEN_CONFIG" = true ]; then
@@ -586,6 +567,13 @@ if [[ "$ONSCREEN_KEYBOARD" = true && -n "$SCREEN_WIDTH" && -n "$SCREEN_HEIGHT" ]
             rm -f "$ONBOARD_CONFIG_FILE"
         fi
     fi
+
+    # Behavior settings (MUST be after restore so they don't get overwritten)
+    dconf write /org/onboard/auto-show/enabled false  # Manual control via keyboard_monitor script
+    dconf write /org/onboard/auto-show/tablet-mode-detection-enabled false
+    dconf write /org/onboard/window/force-to-top true  # Always on top
+    dconf write /org/onboard/icon-palette/in-use false  # Hide floating icon
+    gsettings set org.gnome.desktop.interface toolkit-accessibility true
 
     LOG_MSG=$(
         echo "Onboard keyboard initialized for: $OUTPUT_NAME (${SCREEN_WIDTH}x${SCREEN_HEIGHT}) [$ORIENTATION]"
@@ -601,16 +589,13 @@ if [[ "$ONSCREEN_KEYBOARD" = true && -n "$SCREEN_WIDTH" && -n "$SCREEN_HEIGHT" ]
 
     ### Smart keyboard monitor: show keyboard ONLY on Admin/Login pages
     # Watches the Chromium window title every second.
-    # Shows onboard when title matches admin/login keywords, hides it otherwise.
     bashio::log.info "Starting smart keyboard monitor (Admin pages only)..."
     (
         PREV_STATE=""
         while true; do
-            # Get the current Chromium window title via xdotool
-            WIN_TITLE=$(xdotool search --onlyvisible --class "chromium" getwindowname 2>/dev/null | head -1 || echo "")
-
-            # Keywords that indicate an Admin or Login page (case-insensitive)
-            # Add more patterns here if your admin page has a different title
+            # Use getactivewindow to be more precise if possible, fallback to search
+            WIN_TITLE=$(xdotool getactivewindow getwindowname 2>/dev/null || xdotool search --onlyvisible --class "chromium" getwindowname 2>/dev/null | head -1 || echo "")
+            
             if echo "$WIN_TITLE" | grep -iE "admin|login|sign.?in|รหัสผ่าน|password|เข้าสู่ระบบ" > /dev/null 2>&1; then
                 if [ "$PREV_STATE" != "show" ]; then
                     dbus-send --type=method_call \
@@ -618,7 +603,7 @@ if [[ "$ONSCREEN_KEYBOARD" = true && -n "$SCREEN_WIDTH" && -n "$SCREEN_HEIGHT" ]
                         /org/onboard/Onboard/Keyboard \
                         org.onboard.Onboard.Keyboard.Show 2>/dev/null
                     PREV_STATE="show"
-                    bashio::log.info "Keyboard: SHOW (page: $WIN_TITLE)"
+                    bashio::log.info "Keyboard: SHOW (Title matched: $WIN_TITLE)"
                 fi
             else
                 if [ "$PREV_STATE" != "hide" ]; then
