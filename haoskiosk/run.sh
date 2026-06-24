@@ -588,29 +588,37 @@ if [[ "$ONSCREEN_KEYBOARD" = true && -n "$SCREEN_WIDTH" && -n "$SCREEN_HEIGHT" ]
     onboard &
 
     # Force-hide onboard after 3 seconds (overrides any saved visible state from previous session)
-    ( sleep 3 && dbus-send --session --type=method_call \
+    ( sleep 3 && dconf write /org/onboard/auto-show/enabled false \
+        && dbus-send --session --type=method_call \
         --dest=org.onboard.Onboard \
         /org/onboard/Onboard/Keyboard \
         org.onboard.Onboard.Keyboard.Hide 2>/dev/null ) &
 
-    ### Smart keyboard monitor: show keyboard ONLY on Admin/Login pages
+    ### Smart keyboard monitor:
+    # - Admin/Login page: enable auto-show so keyboard appears only when text field is focused
+    # - All other pages: disable auto-show and force-hide keyboard
     bashio::log.info "Starting smart keyboard monitor (Admin pages only)..."
     (
         sleep 5  # Wait for onboard and Chromium to fully start up
+        PREV_PAGE=""
         while true; do
-            # Get window title (log it so we can debug what title the user page has)
             WIN_TITLE=$(xdotool getactivewindow getwindowname 2>/dev/null || xdotool search --onlyvisible --class "chromium" getwindowname 2>/dev/null | head -1 || echo "")
-            bashio::log.debug "Keyboard monitor: window='$WIN_TITLE'"
 
-            # Check if title contains admin/login keywords
             if echo "$WIN_TITLE" | grep -iE "admin|login|sign.?in|รหัสผ่าน|password|เข้าสู่ระบบ" > /dev/null 2>&1; then
-                # On Admin page: show keyboard
-                dbus-send --session --type=method_call \
-                    --dest=org.onboard.Onboard \
-                    /org/onboard/Onboard/Keyboard \
-                    org.onboard.Onboard.Keyboard.Show 2>/dev/null
+                # Admin page: enable auto-show so onboard appears only when text input is focused
+                if [ "$PREV_PAGE" != "admin" ]; then
+                    bashio::log.info "Keyboard monitor: ADMIN page detected - enabling auto-show"
+                    dconf write /org/onboard/auto-show/enabled true
+                    PREV_PAGE="admin"
+                fi
             else
-                # On any other page: force-hide keyboard every 2 seconds
+                # User page: disable auto-show and force-hide
+                if [ "$PREV_PAGE" != "user" ]; then
+                    bashio::log.info "Keyboard monitor: USER page detected - disabling keyboard"
+                    dconf write /org/onboard/auto-show/enabled false
+                    PREV_PAGE="user"
+                fi
+                # Keep hiding aggressively every cycle
                 dbus-send --session --type=method_call \
                     --dest=org.onboard.Onboard \
                     /org/onboard/Onboard/Keyboard \
@@ -716,7 +724,8 @@ if [ "$DEBUG_MODE" != true ]; then
         # Removed --disable-software-rasterizer as it might cause crash if no rendering path exists
         # Auto-grant camera/mic permission (no popup in kiosk mode)
         BROWSER_FLAGS="$BROWSER_FLAGS --use-fake-ui-for-media-stream"
-        
+        # Expose text field focus events via AT-SPI so onboard auto-show works on admin page
+        BROWSER_FLAGS="$BROWSER_FLAGS --force-renderer-accessibility"
         # Add logging to help diagnose if it crashes again
         BROWSER_FLAGS="$BROWSER_FLAGS --enable-logging=stderr --v=1"
 
