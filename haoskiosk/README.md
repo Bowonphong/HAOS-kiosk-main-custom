@@ -1,4 +1,6 @@
-# HAOS-kiosk
+# HAOS-kiosk (Custom Version)
+
+> **Note:** This is a custom version, not the original.
 
 Display HA dashboards in kiosk mode directly on your HAOS server.
 
